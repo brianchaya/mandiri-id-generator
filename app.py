@@ -287,7 +287,12 @@ def prepare_new(df):
 
     id_cols = [c for c in df.columns if c.strip().upper() == "ID"]
     if len(id_cols) == 0:
-        st.error("Column 'ID' not found.")
+        st.error(
+            "Column 'ID' not found. Pastikan file statement sudah ada kolom "
+            "bernama persis 'ID' (biasanya ditambahkan manual sebelum upload, "
+            "sama seperti workflow BCA/BRI kamu). "
+            f"Kolom yang terbaca dari file: {list(df.columns)}"
+        )
         st.stop()
 
     id_col = id_cols[0]
