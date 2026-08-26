@@ -115,65 +115,163 @@ def extract_code(text):
     # (dicek hanya kalau BUKAN baris MCM InhouseTrf / tidak ada kata "DARI",
     # supaya donatur bernama "BUNGA ..." tidak ikut ke-skip)
     if "MCM INHOUSETRF" not in upper and "DARI" not in upper:
-        if re.search(r'\bBIAYA\b', upper) or re.search(r'\bBUNGA\b', upper) or re.search(r'\bPAJAK\b', upper):
+        if (
+            re.search(r'\bBIAYA\b', upper)
+            or re.search(r'\bBUNGA\b', upper)
+            or re.search(r'\bPAJAK\b', upper)
+        ):
             return "IGNORE"
 
-    # ===== Model 2: Auto Transfer antar rekening sendiri =====
-    if re.search(r'DARI\s+\d+\s+KE\s+\d+\s+AUTO TRANSFER', upper):
+    # =========================================================
+    # MODEL 1: UBP
+    # =========================================================
+    # Contoh:
+    # UBP60148963301FFFFFF8963300049407 99101
+    # -> 49407
+    #
+    # Contoh:
+    # UBP60498963301FFFFFF8963300049396 CENAIDJA/8601297833 -99102
+    # -> 49396
+    #
+    # Intinya:
+    # setelah UBP, ambil 5 digit terakhir dari blok kode UBP
+    # sebelum spasi / keterangan tambahan.
+    if upper.startswith("UBP"):
+        m = re.search(r'^UBP.*?(\d{5})(?:\s|$)', t, re.IGNORECASE)
+
+        if m:
+            return m.group(1)
+
+        # fallback apabila 5 digit tersebut tidak langsung diikuti spasi
+        m = re.search(r'^UBP.*?(\d{5})', t, re.IGNORECASE)
+
+        if m:
+            return m.group(1)
+
         return "N/A"
 
-    # ===== Model 3: MCM InhouseTrf DARI <NAMA> ... =====
+    # =========================================================
+    # MODEL 2: DARI <NOREK> KE <NOREK> AUTO TRANSFER
+    # =========================================================
+    # Contoh:
+    # DARI 1270013343957 KE 1230004172278 Auto Transfer 12719
+    # -> 1270013343957
+    #
+    # Contoh:
+    # DARI 1460010530298 KE 1230004172278 Auto Transfer 14620
+    # -> 1460010530298
+    #
+    # Ambil nomor rekening pertama setelah "DARI"
+    # dan sebelum "KE".
+    m = re.search(
+        r'DARI\s+(\d+)\s+KE\s+\d+\s+AUTO\s+TRANSFER',
+        upper,
+        re.IGNORECASE
+    )
+
+    if m:
+        return m.group(1)
+
+    # =========================================================
+    # MODEL 3: MCM InhouseTrf DARI <NAMA> ...
+    # =========================================================
     if "MCM INHOUSETRF" in upper:
         idx = upper.find("MCM INHOUSETRF")
         sub_after = t[idx:]
+
         m = re.search(r'DARI\s+(.*)$', sub_after, re.IGNORECASE)
+
         if m:
             after_dari = m.group(1).strip()
             words = after_dari.split(" ")
             name = _take_name_words(words)
+
             if name:
                 return name
+
         return "N/A"
 
-    # ===== Model 4: ATMB trf Credt (tanpa nama) =====
+    # =========================================================
+    # MODEL 4: ATMB trf Credt
+    # =========================================================
+    # Contoh:
+    # ATMB trf Credt 00388849 /4316214185/ATB-0000000000022
+    # 070162586200099105
+    #
+    # Kode unik:
+    # 0701625862000
+    #
+    # Intinya:
+    # cari angka yang diakhiri dengan 99105,
+    # lalu buang 99105.
     if "ATMB TRF" in upper:
+        m = re.search(r'(\d+)99105\b', upper)
+
+        if m:
+            return m.group(1)
+
         return "N/A"
 
-    # ===== Model 5: DARI <NAMA> ... Transfer ATM ... =====
+    # =========================================================
+    # MODEL 5: DARI <NAMA> ... Transfer ATM ...
+    # =========================================================
     if "TRANSFER ATM" in upper:
         idx = upper.find("TRANSFER ATM")
         before = t[:idx]
+
         m = re.search(r'DARI\s+(.*)$', before, re.IGNORECASE)
+
         if m:
             name = m.group(1).strip()
+
             if name:
                 return name
+
         return "N/A"
 
-    # ===== Model 6: RTGS/SKN masuk -> <KODEBANK>/<NAMA atau NOMOR REK> =====
-    # kode bank selalu didominasi huruf (BRINIDJA, JAGBIDJA, BUSTIDJ1, dst),
-    # bukan nomor rekening/mesin ATM murni -> wajib >=4 huruf di depan slash
-    m = re.search(r'\b([A-Z]{4,10}[0-9]{0,2})/([A-Za-z .,\'\-]*)', t)
+    # =========================================================
+    # MODEL 6: RTGS/SKN masuk
+    # =========================================================
+    # Format:
+    # <KODEBANK>/<NAMA atau NOMOR REK>
+    #
+    # Contoh:
+    # BRINIDJA/NAMA
+    # JAGBIDJA/NAMA
+    # CENAIDJA/NAMA
+    #
+    # Kode bank selalu didominasi huruf
+    # dan wajib >=4 huruf sebelum slash.
+    m = re.search(
+        r'\b([A-Z]{4,10}[0-9]{0,2})/([A-Za-z .,\'\-]*)',
+        t
+    )
+
     if m:
         after_slash = m.group(2).strip()
+
         if after_slash:
             words = after_slash.split(" ")
             name_words = []
+
             for w in words:
                 w_clean = w.strip(",.-")
+
                 if w_clean != "":
                     name_words.append(w_clean)
                 else:
                     break
+
             if name_words:
                 return " ".join(name_words)
+
         return "N/A"
 
-    # ===== Model 1: UBP murni kode (tanpa nama) =====
-    if upper.startswith("UBP"):
-        return "N/A"
-
-    # ===== fallback: WVI Sponsorship, MVA-Inwrd, PRMA CR Transf, Setor Tunai, dll =====
+    # =========================================================
+    # FALLBACK
+    # =========================================================
+    # WVI Sponsorship, MVA-Inwrd, PRMA CR Transf,
+    # Setor Tunai, Pindah Dana, dll.
     return "N/A"
 
 
