@@ -47,7 +47,24 @@ def normalize_kode(x):
 # Fallback : selain semua di atas (WVI Sponsorship, MVA-Inwrd, PRMA CR Transf,
 #            Setor Tunai, Pindah Dana, dll yang tidak punya nama jelas) -> N/A
 
-STOPWORDS = {"ID", "NO", "REK", "NO."}
+STOPWORDS = {
+    "ID", "NO", "REK", "NO.", "DONASI", "DONATUR",
+    "WVI", "GN",
+    # nama bulan (Indonesia & Inggris) yang suka ditulis ALL CAPS oleh donatur
+    # di belakang nama, jadi harus dianggap batas akhir nama, bukan bagian nama
+    "JAN", "JANUARI", "JANUARY",
+    "FEB", "FEBRUARI", "FEBRUARY",
+    "MAR", "MARET", "MARCH",
+    "APR", "APRIL",
+    "MEI", "MAY",
+    "JUN", "JUNI", "JUNE",
+    "JUL", "JULI", "JULY",
+    "AGT", "AGU", "AGUSTUS", "AUG", "AUGUST",
+    "SEP", "SEPT", "SEPTEMBER",
+    "OKT", "OCT", "OKTOBER", "OCTOBER",
+    "NOV", "NOVEMBER",
+    "DES", "DEC", "DESEMBER", "DECEMBER",
+}
 
 
 def _take_name_words(words):
