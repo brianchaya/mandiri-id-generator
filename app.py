@@ -44,10 +44,18 @@ def normalize_kode(x):
 #            NISPIDJA/, SUNIIDJA/, SBJKIDJA/, SSPIIDJA/, CENAIDJA/, BUSTIDJ1/, dll)
 #            ambil nama setelah "/" sampai ketemu angka pertama; kalau setelah "/"
 #            langsung angka -> tanpa nama -> N/A
+# Model 7  : <NOREK DEPAN> <NOREK LAIN> ... (kode ATM/LNK tanpa nama) -> ambil
+#            nomor rekening paling depan sebagai kode unik, KECUALI kalau nomor
+#            itu adalah rekening WVI sendiri (1230004172278) -> N/A
 # IGNORE   : Biaya Adm / Bunga / Pajak (bukan transaksi donasi, ini biaya/bunga
 #            bank) -> dibuang total, mirip "KARTU KREDIT" di script BCA
 # Fallback : selain semua di atas (WVI Sponsorship, MVA-Inwrd, PRMA CR Transf,
 #            Setor Tunai, Pindah Dana, dll yang tidak punya nama jelas) -> N/A
+
+# Nomor rekening WVI sendiri (selalu jadi tujuan "KE ... Auto Transfer" di
+# Model 2). Kalau nomor ini nongol jadi "nomor depan" di Model 7, itu BUKAN
+# identitas pengirim -> jangan dipakai sebagai kode unik.
+WVI_OWN_ACCOUNTS = {"1230004172278"}
 
 STOPWORDS = {
     "ID", "NO", "REK", "NO.", "DONASI", "DONATUR",
@@ -268,6 +276,26 @@ def extract_code(text):
                 return " ".join(name_words)
 
         return "N/A"
+
+    # =========================================================
+    # MODEL 7: <NOREK DEPAN> <NOREK LAIN> ... (kode akun ATM/LNK, tanpa nama)
+    # =========================================================
+    # Contoh:
+    # 1030004131948   1230004172278   4616993299369896 T0800106
+    # /0000079237/ATM-305031774 J99105
+    # -> 1030004131948
+    #
+    # Intinya:
+    # kalau baris diawali langsung dengan nomor rekening (bukan huruf),
+    # ambil nomor rekening paling depan sebagai kode unik. KECUALI kalau
+    # nomor itu adalah rekening WVI sendiri -> N/A (bukan identitas pengirim).
+    m = re.search(r'^(\d{10,})\s', t)
+
+    if m:
+        norek = m.group(1)
+        if norek in WVI_OWN_ACCOUNTS:
+            return "N/A"
+        return norek
 
     # =========================================================
     # FALLBACK
